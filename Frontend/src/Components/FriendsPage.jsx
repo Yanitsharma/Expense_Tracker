@@ -1,10 +1,16 @@
 import React from "react";
 import { useState ,useEffect} from "react";
-const API_BASE_URL = 'https://expense-tracker-2-vq4x.onrender.com';
+const API_BASE_URL = 'http://localhost:2000';
 const FriendsPage = ({ navigateHome, groupId }) => {
   const ArrowRightIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-green-400"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg> );
 
-
+const XCircleIcon = () => ( 
+    <svg xmlns="http://www.w.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-slate-400 hover:text-red-400 cursor-pointer transition-colors">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="15" y1="9" x2="9" y2="15"></line>
+        <line x1="9" y1="9" x2="15" y2="15"></line>
+    </svg> 
+);
   const ArrowLeftIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 mr-2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg> );
 
 
@@ -107,6 +113,32 @@ const FriendsPage = ({ navigateHome, groupId }) => {
             return { ...prev, splitWith: newSplitWith };
         });
     };
+    const handleDeleteFriend = async (friendToDelete) => {
+    
+    if (!window.confirm(`Are you sure you want to remove ${friendToDelete}? This will also remove them from all expenses.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/groups/${groupId}/friends`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: friendToDelete }),
+        });
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.message || 'Failed to delete friend');
+        }
+        const data = await response.json();
+        
+        setFriends(data.friends);
+        setExpenses(data.expenses);
+        setSettlements(null); 
+        setFriendError('');
+    } catch (error) {
+        setFriendError(error.message);
+    }
+};
     
      const calculateSettlements = () => {
         if(expenses.length === 0) return;
@@ -172,7 +204,16 @@ const FriendsPage = ({ navigateHome, groupId }) => {
                         </div>
                         {friendError && <p className="text-red-400 mt-2 text-sm">{friendError}</p>}
                         <div className="mt-4 flex flex-wrap gap-2">
-                            {friends.map(f => <span key={f} className="bg-slate-600 text-sm rounded-full px-3 py-1">{f}</span>)}
+                            {friends.map(f => (
+                           <div key={f} className="bg-slate-600 text-sm rounded-full px-3 py-1 flex items-center gap-2">
+                            <span key={f} className="bg-slate-600 text-sm rounded-full px-3 py-1">{f}</span>
+                             <button onClick={() => handleDeleteFriend(f)} title={`Remove ${f}`}>
+                <XCircleIcon />
+            </button>
+            </div>
+                            
+                        ))}
+
                         </div>
                     </div>
                      <hr className="border-slate-600" />
