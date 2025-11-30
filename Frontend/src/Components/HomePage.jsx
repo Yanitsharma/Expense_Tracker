@@ -1,6 +1,6 @@
 import React from "react";
 import { useState } from "react";
-const API_BASE_URL = 'https://expense-tracker-3-lp4t.onrender.com';
+const API_BASE_URL = 'http://localhost:2000';
 const HomePage = ({ navigateToDashboard }) => {
     const [joinId, setJoinId] = useState('');
     const [error, setError] = useState('');

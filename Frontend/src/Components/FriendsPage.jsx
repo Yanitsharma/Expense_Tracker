@@ -1,6 +1,6 @@
 import React from "react";
 import { useState ,useEffect} from "react";
-const API_BASE_URL = 'https://expense-tracker-3-lp4t.onrender.com';
+const API_BASE_URL = 'http://localhost:2000';
 const FriendsPage = ({ navigateHome, groupId }) => {
   const ArrowRightIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-green-400"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg> );
 
@@ -44,7 +44,6 @@ const XCircleIcon = () => (
                 setExpenses(data.expenses);
             } catch (error) {
                 console.error(error);
-               
                 navigateHome(); 
             } finally {
                 setIsLoading(false);
@@ -115,7 +114,7 @@ const XCircleIcon = () => (
     };
     const handleDeleteFriend = async (friendToDelete) => {
     
-    if (!window.confirm(`Are you sure you want to remove ${friendToDelete}? This will also remove them from all expenses.`)) {
+    if (!window.confirm(`Are you sure you want to remove ${friendToDelete}?.`)) {
         return;
     }
     
@@ -140,32 +139,71 @@ const XCircleIcon = () => (
     }
 };
     
-     const calculateSettlements = () => {
-        if(expenses.length === 0) return;
+    const calculateSettlements = () => {
+        if (expenses.length === 0) return;
+
+        // 1. Calculate Net Balances for everyone
         const balances = friends.reduce((acc, friend) => ({ ...acc, [friend]: 0 }), {});
+        
         expenses.forEach(({ amount, paidBy, splitWith }) => {
             balances[paidBy] += amount;
             const share = amount / splitWith.length;
             splitWith.forEach(friend => { balances[friend] -= share; });
         });
-        const debtors = friends.filter(f => balances[f] < 0);
-        const creditors = friends.filter(f => balances[f] > 0);
+
+        // 2. Convert balances to an array of objects and filter out those with ~0 balance
+        // Structure: [ { name: 'Alice', amount: -50 }, { name: 'Bob', amount: 100 }, ... ]
+        let people = Object.keys(balances)
+            .map(name => ({ name, amount: balances[name] }))
+            .filter(p => Math.abs(p.amount) > 0.01); // Filter out settled people
+
+        // 3. Sort people by amount: Ascending (Debtors -> Creditors)
+        people.sort((a, b) => a.amount - b.amount);
+
         const transactions = [];
-        debtors.forEach(debtor => {
-            creditors.forEach(creditor => {
-                const amountToSettle = Math.min(-balances[debtor], balances[creditor]);
-                if (amountToSettle > 0.01) {
-                    transactions.push({ from: debtor, to: creditor, amount: amountToSettle });
-                    balances[debtor] += amountToSettle;
-                    balances[creditor] -= amountToSettle;
-                }
-            });
-        });
+        let left = 0;                 // Pointer to the biggest debtor (Most negative)
+        let right = people.length - 1; // Pointer to the biggest creditor (Most positive)
+
+        // 4. Two Pointers Loop
+        while (left < right) {
+            const debtor = people[left];
+            const creditor = people[right];
+
+            // Determine the amount to settle:
+            // It is the minimum of |debtor's debt| and |creditor's credit|
+            const amountToSettle = Math.min(Math.abs(debtor.amount), creditor.amount);
+
+            if (amountToSettle > 0.01) {
+                transactions.push({ 
+                    from: debtor.name, 
+                    to: creditor.name, 
+                    amount: amountToSettle 
+                });
+            }
+
+            // Update internal balances after this transaction
+            debtor.amount += amountToSettle;   // Debtor pays, balance goes up (closer to 0)
+            creditor.amount -= amountToSettle; // Creditor gets paid, balance goes down (closer to 0)
+
+            // 5. Move Pointers if settled
+            // Check if debtor is settled (close to 0)
+            if (Math.abs(debtor.amount) < 0.01) {
+                left++;
+            }
+            // Check if creditor is settled (close to 0)
+            if (Math.abs(creditor.amount) < 0.01) {
+                right--;
+            }
+        }
+
+        // 6. Map transactions back to your existing UI structure
         const finalSettlements = friends.reduce((acc, f) => ({ ...acc, [f]: { owes: [], owedBy: [] } }), {});
+        
         transactions.forEach(({ from, to, amount }) => {
             finalSettlements[from].owes.push({ name: to, amount });
             finalSettlements[to].owedBy.push({ name: from, amount });
         });
+
         setSettlements(finalSettlements);
     };
 
