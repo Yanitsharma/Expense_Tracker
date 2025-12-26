@@ -3,21 +3,23 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
 
-const { Group } = require('./models/Group');
+// Ensure you have this file in a 'models' folder, 
+// or define the schema here if you prefer a single file.
+const { Group } = require('./models/Group'); 
 
 const app = express();
 const PORT = process.env.PORT || 2000;
 
-
 app.use(cors());
 app.use(express.json());
 
-
+// Standard MongoDB Connection
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('MongoDB connected successfully.'))
     .catch(err => console.error('MongoDB connection error:', err));
 
 
+// --- YOUR ORIGINAL ROUTES ---
 
 app.get('/api/groups/:id', async (req, res) => {
     try {
@@ -95,6 +97,7 @@ app.post('/api/groups/:id/expenses', async (req, res) => {
         res.status(500).json({ message: 'Server Error' });
     }
 });
+
 app.delete('/api/groups/:id/friends', async (req, res) => {
     try {
         const { name: friendToDelete } = req.body;
@@ -102,60 +105,39 @@ app.delete('/api/groups/:id/friends', async (req, res) => {
         
         if (!group) return res.status(404).json({ message: 'Group not found' });
 
-        // Check if friend exists in the group first
         if (!group.friends.includes(friendToDelete)) {
             return res.status(404).json({ message: 'Friend not found in this group.' });
         }
 
-        // ======================================================
-        // 1. SAFETY CHECK: CALCULATE BALANCE
-        // ======================================================
         let balance = 0;
 
         group.expenses.forEach(expense => {
-            // Case A: They paid for something (They are owed money +)
             if (expense.paidBy === friendToDelete) {
                 balance += expense.amount;
             }
-
-            // Case B: They were part of a split (They owe money -)
             if (expense.splitWith.includes(friendToDelete)) {
                 const share = expense.amount / expense.splitWith.length;
                 balance -= share;
             }
         });
 
-        // Check if balance is non-zero (using 0.01 to handle tiny decimal errors)
         if (Math.abs(balance) > 0.01) {
             const formattedBalance = Math.abs(balance).toFixed(2);
             const statusMsg = balance > 0 ? "is owed" : "owes";
-            
-            // Return 400 Bad Request - STOP HERE
             return res.status(400).json({ 
                 message: `Cannot remove ${friendToDelete}. They ${statusMsg} $${formattedBalance}. Please settle up expenses involving them first.` 
             });
         }
 
-        // ======================================================
-        // 2. IF BALANCE IS 0, PROCEED WITH DELETION
-        // ======================================================
-
-        // Remove from friends array
         const friendIndex = group.friends.indexOf(friendToDelete);
         group.friends.splice(friendIndex, 1);
 
-        // Clean up expenses
-        // Even though balance is 0, we still clean up the records so their name 
-        // doesn't appear in the "splitWith" arrays anymore.
         group.expenses = group.expenses
-            // Step A: Remove friend from 'splitWith' arrays of existing expenses
             .map(expense => {
                 expense.splitWith = expense.splitWith.filter(member => member !== friendToDelete);
                 return expense;
             })
-            // Step B: Remove expenses paid by this friend (though balance is 0, cleaning up history)
             .filter(expense => expense.paidBy !== friendToDelete)
-            // Step C: Remove expenses that now have 0 people splitting them
             .filter(expense => expense.splitWith.length > 0); 
 
         await group.save();    
@@ -166,6 +148,17 @@ app.delete('/api/groups/:id/friends', async (req, res) => {
         res.status(500).json({ message: 'Server Error' });
     }
 });
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+
+// ======================================================
+// 3. VERCEL CONFIGURATION (ONLY CHANGE ADDED)
+// ======================================================
+
+// If running locally (e.g. 'node server.js'), start the server on a port.
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`Server is running locally on port ${PORT}`);
+    });
+}
+
+// Export the app so Vercel can run it as a serverless function
+module.exports = app;

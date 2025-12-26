@@ -160,6 +160,8 @@ const XCircleIcon = () => (
         // 3. Sort people by amount: Ascending (Debtors -> Creditors)
         people.sort((a, b) => a.amount - b.amount);
 
+
+        console.time('Settlement Calculation Time');
         const transactions = [];
         let left = 0;                 // Pointer to the biggest debtor (Most negative)
         let right = people.length - 1; // Pointer to the biggest creditor (Most positive)
@@ -195,6 +197,7 @@ const XCircleIcon = () => (
                 right--;
             }
         }
+        console.timeEnd('Settlement Calculation Time');
 
         // 6. Map transactions back to your existing UI structure
         const finalSettlements = friends.reduce((acc, f) => ({ ...acc, [f]: { owes: [], owedBy: [] } }), {});
