@@ -1,6 +1,6 @@
 import React from "react";
 import { useState } from "react";
-const API_BASE_URL = 'https://eeexpensetracker.vercel.app/';
+const API_BASE_URL = 'https://eeexpensetracker.vercel.app';
 const HomePage = ({ navigateToDashboard }) => {
     const [joinId, setJoinId] = useState('');
     const [error, setError] = useState('');
